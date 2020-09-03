@@ -2,10 +2,10 @@
 
 ## Linear Model
 
-## Decision Tree
-
 * LDA
 * Logistic Regression
+
+## Decision Tree
 
 ## kNN
 

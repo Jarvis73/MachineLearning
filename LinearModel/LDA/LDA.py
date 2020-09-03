@@ -1,13 +1,12 @@
 ﻿#####################################################
-#   coding: gbk
 #
-#   线性判别分析 ( Linear Discriminant Analysis )
+#   Linear Discriminant Analysis
 #
-#   机器学习 周志华 清华大学出版社
+#   Machine Learning , Zhou Zhiwei
 #
-#   第3章 线性模型 习题3.5
+#   Chapter 3. Linear model, exercise 3.5
 #
-#   目标: 实现线性判别分析, 并给出西瓜数据集 3.0 alpha 上的结果
+#   Target: Implement LDA, and test on watermelon dataset 3.0 alpha
 #
 #   Writen by Jarvis (zjw.math@qq.com)
 #
@@ -16,66 +15,91 @@
 
 import numpy as np
 import matplotlib.pylab as plt
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+
+np.random.seed(4325)
 
 
-def load_data(file_path, usecols, delim='\t', dtype='float', skiprows=0):
-    ''' 
-    =================== 读取数据 ==================
-    输入:
-        file_path   数据文件的路径
-        usecols     读取的列号
-        delim       数据分隔符, 默认为 '\t'
-        dtype       数据类型, 默认为 'float'
-        skiprows    开头跳过的行数, 默认不跳行
-    输出:
-        data        读取到的数据作为二维矩阵返回
-    ============================================
-    '''
-    data = np.loadtxt(file_path, delimiter=delim, usecols=usecols, dtype=dtype, skiprows=skiprows)
+def fix_data(number=50):
+    mean = np.array([[-2.96308878,  2.94349617],
+                     [-2.03249244, -2.0312322 ]])
+    cov = np.array([[[2.52722827, 1.39863059],
+                     [1.39863059, 3.14037231]],
+                    [[1.3235537,  0.52337228],
+                     [0.52337228, 1.23186163]]])
+    data = {}
+    for i in range(2):
+        data[i] = np.random.multivariate_normal(mean[i], cov[i], size=number * (i + 1))
     return data
 
+
+def toy_data(classes=2, number=50):
+    mean = np.random.uniform(-10, 10, size=(classes, 2))
+    print("mean:", mean)
+    # Positive-definite
+    t = np.random.rand(classes, 2, 2)
+    t = t @ t.transpose(0, 2, 1)
+    cov = t + t.transpose(0, 2, 1)
+    cov[:, [1, 0], [0, 1]] /= 2
+    print("cov:", cov)
+
+    data = {}
+    for i in range(classes):
+        data[i] = np.random.multivariate_normal(mean[i], cov[i], size=number)
+    return data
+
+
 def LDA(X1, X2):
-    '''
-    ================== 线性判别分析 ==================
-    输入:
-        X1  样例数据集 正例
-        X2  样例数据集 反例
-    输出:
-        w   投影直线的系数
-    =================================================
-    '''
-    
-    # np.cov把每行当作一个变量
-    Sw = np.cov(X1.T) * (X1.shape[0] - 1) + np.cov(X2.T) * (X2.shape[0] - 1)
-    # 计算判别系数
-    w = np.dot(np.linalg.inv(Sw), np.mean(X2, axis=0) - np.mean(X1, axis=0))
+    """
+    Parameters
+    ----------
+    X1: np.ndarray
+        sample dataset, positive
+    X2: np.ndarray
+        sample dataset, negative
+
+    Returns
+    -------
+    w: np.ndarray
+        coefficient
+    """
+    # np.cov treats rows as variables and columns as observations
+    Sw = np.cov(X1, rowvar=False) * (X1.shape[0] - 1) + np.cov(X2, rowvar=False) * (X2.shape[0] - 1)
+    # compute inverse by svd decomposition
+    u, s, vh = np.linalg.svd(Sw)
+    Sw_inv = vh.T @ np.diag(1. / s) @ u.T
+
+    w = Sw_inv.dot(X1.mean(axis=0) - X2.mean(axis=0))
     return w
 
 
-def plot_wm(X1, X2, w):
-    ''' 绘制西瓜数据散点图以及投影直线 '''
-    plt.scatter(X1[:,0], X1[:,1], s=100, marker=(4, 0), facecolors="B")
-    plt.scatter(X2[:,0], X2[:,1], s=100, marker=(3, 0), facecolors="R")
-    x = np.linspace(0, 1, 20)
-    y = -w[0] * x / w[1]    # w[0]*x + w[1]*y = 0  <==  W^T.X = 0
+def plot_wm(X1, X2, w, w2):
+    plt.scatter(X1[:, 1], X1[:, 0], s=100, marker=(4, 0), facecolors="b")
+    plt.scatter(X2[:, 1], X2[:, 0], s=100, marker=(3, 0), facecolors="r")
+    x = np.linspace(-8, 8, 2)
+    y = w[1] / w[0] * x    # w[0]*y + w[1]*x = 0  <==  W^T.X = 0
+    plt.plot(x, y)
+    y = w2[1] / w2[0] * x    # w[0]*y + w[1]*x = 0  <==  W^T.X = 0
     plt.plot(x, y)
 
-    plt.xlabel('density')
-    plt.ylabel('ratio_sugar')
     plt.title('LDA')
-    plt.savefig("LDA.png")
+    # plt.savefig("LDA.png")
+    plt.axis("square")
     plt.show()
 
 
 def main():
-    data = load_data('../../wm_data.txt', np.arange(1, 4), skiprows=1)
-    X, Y = data[:, 0:2], data[:, 2]
-    Y = Y.astype(np.bool)
-    X1, X2 = X[Y, :], X[~Y, :]
-    w = LDA(X1, X2)
-
-    print("Coefficient: ", w)
-    plot_wm(X1, X2, w)
+    data = fix_data(number=10)
+    # data = toy_data(classes=2, number=100)
+    w2 = LDA(data[0], data[1])
+    lda = LinearDiscriminantAnalysis()
+    lda.fit(np.r_[data[0], data[1]], np.r_[np.array([0] * len(data[0])), np.array([1] * len(data[1]))])
+    w = lda.coef_[0]
+    print(lda.coef_[0], w2)
+    plot_wm(data[0], data[1], w, w2)
+    # for i, v in data.items():
+    #     plt.scatter(v[:, 1], v[:, 0])
+    # plt.show()
 
 
 if __name__ == "__main__":
